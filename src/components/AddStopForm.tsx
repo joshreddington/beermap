@@ -37,7 +37,7 @@ export default function AddStopForm({ coords, onAdd, onCancel }: AddStopFormProp
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[1200] flex items-end justify-center bg-black/50 sm:items-center">
+    <div className="fixed inset-0 z-[1200] flex items-end justify-center bg-black/50 sm:items-center">
       <div className="w-full max-w-sm rounded-t-2xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:rounded-2xl">
         <h2 className="text-lg font-semibold text-neutral-900">Add This Stop</h2>
         <p className="mt-1 text-xs text-neutral-500">
