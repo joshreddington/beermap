@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Munich Bar Crawl</string>
+    <string name="title_activity_main">Munich Bar Crawl</string>
+    <string name="package_name">com.beermap.app</string>
+    <string name="custom_url_scheme">com.beermap.app</string>
+</resources>
