@@ -11,6 +11,8 @@ import {
 } from "react";
 import { Crawl, CrawlStop } from "@/lib/types";
 import { generateId } from "@/lib/id";
+import { CRAWL_COLOR_PALETTE } from "@/lib/crawlColors";
+import { pickRandomChallenge } from "@/lib/challenges";
 
 const STORAGE_KEY = "beermap.crawls.v1";
 const ACTIVE_KEY = "beermap.activeCrawlId.v1";
@@ -24,13 +26,10 @@ interface CrawlContextValue {
   logDeparture: (locationId: string) => void;
   openStopFor: (locationId: string) => CrawlStop | undefined;
   deleteCrawl: (crawlId: string) => void;
-  addManualStop: (
-    name: string,
-    description: string,
+  logStopAt: (
+    locationId: string,
     arrivedAt: string,
-    departedAt: string | null,
-    lat: number,
-    lng: number
+    departedAt: string | null
   ) => void;
   deleteStop: (stopId: string) => void;
   closeStop: (stopId: string) => void;
@@ -91,13 +90,14 @@ export function CrawlProvider({ children }: { children: ReactNode }) {
     const crawl: Crawl = {
       id: generateId(),
       name: name.trim() || "Bar Crawl",
+      color: CRAWL_COLOR_PALETTE[crawls.length % CRAWL_COLOR_PALETTE.length],
       startedAt: new Date().toISOString(),
       endedAt: null,
       stops: [],
     };
     setCrawls((prev) => [crawl, ...prev]);
     setActiveCrawlId(crawl.id);
-  }, []);
+  }, [crawls.length]);
 
   const endCrawl = useCallback(() => {
     setCrawls((prev) =>
@@ -130,6 +130,7 @@ export function CrawlProvider({ children }: { children: ReactNode }) {
             locationId,
             arrivedAt: now,
             departedAt: null,
+            challenge: pickRandomChallenge(),
           };
           return { ...c, stops: [...closedStops, stop] };
         })
@@ -169,25 +170,15 @@ export function CrawlProvider({ children }: { children: ReactNode }) {
     [activeCrawl]
   );
 
-  const addManualStop = useCallback(
-    (
-      name: string,
-      description: string,
-      arrivedAt: string,
-      departedAt: string | null,
-      lat: number,
-      lng: number
-    ) => {
+  const logStopAt = useCallback(
+    (locationId: string, arrivedAt: string, departedAt: string | null) => {
       if (!activeCrawlId) return;
       const stop: CrawlStop = {
         id: generateId(),
-        locationId: null,
-        customName: name.trim() || "Custom stop",
-        customDescription: description.trim() || undefined,
-        customLat: lat,
-        customLng: lng,
+        locationId,
         arrivedAt,
         departedAt,
+        challenge: pickRandomChallenge(),
       };
       setCrawls((prev) =>
         prev.map((c) => {
@@ -259,7 +250,7 @@ export function CrawlProvider({ children }: { children: ReactNode }) {
     logDeparture,
     openStopFor,
     deleteCrawl,
-    addManualStop,
+    logStopAt,
     deleteStop,
     closeStop,
   };

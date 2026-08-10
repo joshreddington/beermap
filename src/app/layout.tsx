@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { CrawlProvider } from "@/context/CrawlContext";
 import { HomeProvider } from "@/context/HomeContext";
+import { CustomLocationsProvider } from "@/context/CustomLocationsContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,9 +37,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col overscroll-none">
-        <HomeProvider>
-          <CrawlProvider>{children}</CrawlProvider>
-        </HomeProvider>
+        <ThemeProvider>
+          <HomeProvider>
+            <CustomLocationsProvider>
+              <CrawlProvider>{children}</CrawlProvider>
+            </CustomLocationsProvider>
+          </HomeProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

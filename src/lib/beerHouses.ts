@@ -91,4 +91,20 @@ export const BEER_HOUSES: BeerHouse[] = [
     lng: 11.8967,
     address: "Franz-Brombach-Straße 2, 85435 Erding",
   },
+  {
+    id: "augustiner-am-dom",
+    name: "Augustiner am Dom",
+    description: "Cosy Augustiner tavern tucked right behind the Frauenkirche's towers.",
+    lat: 48.1385,
+    lng: 11.5735,
+    address: "Frauenplatz 8, 80331 München",
+  },
+  {
+    id: "airbraeu",
+    name: "Airbräu",
+    description: "The airport's own micro-brewery, in case the crawl needs to start (or end) at the gate.",
+    lat: 48.3538,
+    lng: 11.7861,
+    address: "Nordallee 3, 85356 München-Flughafen",
+  },
 ];

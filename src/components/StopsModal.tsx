@@ -1,6 +1,6 @@
 "use client";
 
-import { Crawl } from "@/lib/types";
+import { Crawl, CustomLocation } from "@/lib/types";
 import { stopLocationName } from "@/lib/stops";
 import SwipeToDelete from "./SwipeToDelete";
 
@@ -13,11 +13,17 @@ function formatTime(iso: string): string {
 
 interface StopsModalProps {
   crawl: Crawl;
+  customLocations: CustomLocation[];
   onClose: () => void;
   onDeleteStop: (stopId: string) => void;
 }
 
-export default function StopsModal({ crawl, onClose, onDeleteStop }: StopsModalProps) {
+export default function StopsModal({
+  crawl,
+  customLocations,
+  onClose,
+  onDeleteStop,
+}: StopsModalProps) {
   return (
     <div className="fixed inset-0 z-[1100] bg-black/50">
       <div className="absolute inset-x-0 bottom-0 top-16 flex flex-col rounded-t-2xl bg-white">
@@ -45,14 +51,21 @@ export default function StopsModal({ crawl, onClose, onDeleteStop }: StopsModalP
                 {crawl.stops.map((s, i) => (
                   <li key={s.id}>
                     <SwipeToDelete onDelete={() => onDeleteStop(s.id)}>
-                      <div className="flex items-center justify-between gap-2 px-1 py-2.5">
-                        <span className="truncate text-sm text-neutral-800">
-                          {i + 1}. {stopLocationName(s)}
-                        </span>
-                        <span className="shrink-0 text-xs text-neutral-500">
-                          {formatTime(s.arrivedAt)}
-                          {s.departedAt ? ` – ${formatTime(s.departedAt)}` : " – still there"}
-                        </span>
+                      <div className="px-1 py-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm text-neutral-800">
+                            {i + 1}. {stopLocationName(s, customLocations)}
+                          </span>
+                          <span className="shrink-0 text-xs text-neutral-500">
+                            {formatTime(s.arrivedAt)}
+                            {s.departedAt ? ` – ${formatTime(s.departedAt)}` : " – still there"}
+                          </span>
+                        </div>
+                        {s.challenge && (
+                          <div className="mt-0.5 text-xs text-neutral-500">
+                            🎯 {s.challenge}
+                          </div>
+                        )}
                       </div>
                     </SwipeToDelete>
                   </li>

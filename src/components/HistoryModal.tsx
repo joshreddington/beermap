@@ -1,7 +1,8 @@
 "use client";
 
-import { Crawl } from "@/lib/types";
+import { Crawl, CustomLocation } from "@/lib/types";
 import { stopLocationName } from "@/lib/stops";
+import { getCrawlColor } from "@/lib/crawlColors";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -20,12 +21,14 @@ function formatDate(iso: string): string {
 
 interface HistoryModalProps {
   crawls: Crawl[];
+  customLocations: CustomLocation[];
   onClose: () => void;
   onDelete: (id: string) => void;
 }
 
 export default function HistoryModal({
   crawls,
+  customLocations,
   onClose,
   onDelete,
 }: HistoryModalProps) {
@@ -54,7 +57,8 @@ export default function HistoryModal({
             {crawls.map((crawl) => (
               <li
                 key={crawl.id}
-                className="rounded-xl border border-neutral-200 p-4"
+                className="rounded-xl border border-neutral-200 border-l-4 p-4"
+                style={{ borderLeftColor: getCrawlColor(crawl) }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -76,16 +80,21 @@ export default function HistoryModal({
                 {crawl.stops.length === 0 ? (
                   <p className="mt-2 text-sm text-neutral-400">No stops logged.</p>
                 ) : (
-                  <ol className="mt-2 space-y-1 text-sm text-neutral-700">
+                  <ol className="mt-2 space-y-1.5 text-sm text-neutral-700">
                     {crawl.stops.map((stop, i) => (
-                      <li key={stop.id} className="flex justify-between gap-2">
-                        <span className="truncate">
-                          {i + 1}. {stopLocationName(stop)}
-                        </span>
-                        <span className="shrink-0 text-neutral-500">
-                          {formatTime(stop.arrivedAt)}
-                          {stop.departedAt ? ` – ${formatTime(stop.departedAt)}` : " – still there"}
-                        </span>
+                      <li key={stop.id}>
+                        <div className="flex justify-between gap-2">
+                          <span className="truncate">
+                            {i + 1}. {stopLocationName(stop, customLocations)}
+                          </span>
+                          <span className="shrink-0 text-neutral-500">
+                            {formatTime(stop.arrivedAt)}
+                            {stop.departedAt ? ` – ${formatTime(stop.departedAt)}` : " – still there"}
+                          </span>
+                        </div>
+                        {stop.challenge && (
+                          <div className="text-xs text-neutral-500">🎯 {stop.challenge}</div>
+                        )}
                       </li>
                     ))}
                   </ol>

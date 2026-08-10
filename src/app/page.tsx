@@ -4,18 +4,19 @@ import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useCrawls } from "@/context/CrawlContext";
 import { useHome } from "@/context/HomeContext";
+import { useCustomLocations } from "@/context/CustomLocationsContext";
 import { BEER_HOUSES } from "@/lib/beerHouses";
 import { stopCoords } from "@/lib/stops";
+import { getCrawlColor } from "@/lib/crawlColors";
 import CrawlBar, { ViewMode } from "@/components/CrawlBar";
 import LocationPanel from "@/components/LocationPanel";
 import StartCrawlModal from "@/components/StartCrawlModal";
 import HistoryModal from "@/components/HistoryModal";
 import StopsModal from "@/components/StopsModal";
 import AddStopForm from "@/components/AddStopForm";
-import CustomStopPanel from "@/components/CustomStopPanel";
 import HomeSheet from "@/components/HomeSheet";
 import BeerHouseList from "@/components/BeerHouseList";
-import type { LocationStatus, RouteSegment, PickMode } from "@/components/BeerMap";
+import type { LocationStatus, RouteSegment, PickMode, MapLocation } from "@/components/BeerMap";
 
 const BeerMap = dynamic(() => import("@/components/BeerMap"), {
   ssr: false,
@@ -37,17 +38,14 @@ export default function Home() {
     logArrival,
     logDeparture,
     deleteCrawl,
-    addManualStop,
+    logStopAt,
     deleteStop,
-    closeStop,
   } = useCrawls();
   const { home, setHome, clearHome } = useHome();
+  const { customLocations, addCustomLocation, deleteCustomLocation } = useCustomLocations();
 
   const [view, setView] = useState<ViewMode>("map");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedCustomStopId, setSelectedCustomStopId] = useState<string | null>(
-    null
-  );
   const [showStart, setShowStart] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showStops, setShowStops] = useState(false);
@@ -55,6 +53,14 @@ export default function Home() {
   const [pickTarget, setPickTarget] = useState<PickTarget>(null);
   const [pendingStopCoords, setPendingStopCoords] = useState<[number, number] | null>(
     null
+  );
+
+  const locations = useMemo<MapLocation[]>(
+    () => [
+      ...BEER_HOUSES,
+      ...customLocations.map((c) => ({ ...c, kind: "custom" as const })),
+    ],
+    [customLocations]
   );
 
   const getStatus = useCallback(
@@ -72,7 +78,7 @@ export default function Home() {
   const routeSegments = useMemo<RouteSegment[]>(() => {
     if (!activeCrawl) return [];
     const resolved = activeCrawl.stops
-      .map((s) => ({ stop: s, coords: stopCoords(s) }))
+      .map((s) => ({ stop: s, coords: stopCoords(s, customLocations) }))
       .filter((s): s is { stop: (typeof activeCrawl.stops)[number]; coords: [number, number] } =>
         s.coords !== null
       );
@@ -86,41 +92,21 @@ export default function Home() {
       });
     }
     return segments;
-  }, [activeCrawl]);
+  }, [activeCrawl, customLocations]);
 
   const lastStopCoords = useMemo<[number, number] | null>(() => {
     if (!activeCrawl) return null;
     for (let i = activeCrawl.stops.length - 1; i >= 0; i--) {
-      const coords = stopCoords(activeCrawl.stops[i]);
+      const coords = stopCoords(activeCrawl.stops[i], customLocations);
       if (coords) return coords;
     }
     return null;
-  }, [activeCrawl]);
+  }, [activeCrawl, customLocations]);
 
-  const customStops = useMemo(() => {
-    if (!activeCrawl) return [];
-    return activeCrawl.stops
-      .filter((s) => !s.locationId && s.customLat !== undefined && s.customLng !== undefined)
-      .map((s) => ({
-        id: s.id,
-        name: s.customName ?? "Custom stop",
-        lat: s.customLat as number,
-        lng: s.customLng as number,
-      }));
-  }, [activeCrawl]);
+  const selectedLocation = locations.find((l) => l.id === selectedId) ?? null;
 
-  const selectedLocation = BEER_HOUSES.find((b) => b.id === selectedId) ?? null;
-  const selectedCustomStop =
-    activeCrawl?.stops.find((s) => s.id === selectedCustomStopId) ?? null;
-
-  function selectBeerHouse(id: string) {
-    setSelectedCustomStopId(null);
+  function selectLocation(id: string) {
     setSelectedId(id);
-  }
-
-  function selectCustomStop(id: string) {
-    setSelectedId(null);
-    setSelectedCustomStopId(id);
   }
 
   const pickMode: PickMode | null =
@@ -176,14 +162,12 @@ export default function Home() {
         {view === "map" ? (
           <>
             <BeerMap
-              locations={BEER_HOUSES}
+              locations={locations}
               selectedId={selectedId}
-              onSelect={selectBeerHouse}
+              onSelect={selectLocation}
               getStatus={getStatus}
               routeSegments={routeSegments}
-              customStops={customStops}
-              selectedCustomStopId={selectedCustomStopId}
-              onSelectCustomStop={selectCustomStop}
+              routeBaseColor={activeCrawl ? getCrawlColor(activeCrawl) : undefined}
               homeLocation={home ? [home.lat, home.lng] : null}
               onHomeClick={() => setShowHomeSheet(true)}
               pickMode={pickMode}
@@ -191,7 +175,7 @@ export default function Home() {
               onPick={handlePick}
               onCancelPick={() => setPickTarget(null)}
             />
-            {!pickMode && activeCrawl && (
+            {!pickMode && (
               <button
                 onClick={handleStartAddStop}
                 aria-label="Add a stop"
@@ -212,9 +196,9 @@ export default function Home() {
           </>
         ) : (
           <BeerHouseList
-            locations={BEER_HOUSES}
+            locations={locations}
             getStatus={getStatus}
-            onSelect={selectBeerHouse}
+            onSelect={selectLocation}
           />
         )}
       </div>
@@ -228,18 +212,15 @@ export default function Home() {
           onClose={() => setSelectedId(null)}
           onStartCrawl={() => setShowStart(true)}
           onDeleteStop={deleteStop}
-        />
-      )}
-
-      {selectedCustomStop && (
-        <CustomStopPanel
-          stop={selectedCustomStop}
-          onClose={() => setSelectedCustomStopId(null)}
-          onLogDeparture={() => closeStop(selectedCustomStop.id)}
-          onDelete={() => {
-            deleteStop(selectedCustomStop.id);
-            setSelectedCustomStopId(null);
-          }}
+          isCustom={selectedLocation.kind === "custom"}
+          onDeleteLocation={
+            selectedLocation.kind === "custom"
+              ? () => {
+                  deleteCustomLocation(selectedLocation.id);
+                  setSelectedId(null);
+                }
+              : undefined
+          }
         />
       )}
 
@@ -256,6 +237,7 @@ export default function Home() {
       {showHistory && (
         <HistoryModal
           crawls={crawls}
+          customLocations={customLocations}
           onClose={() => setShowHistory(false)}
           onDelete={deleteCrawl}
         />
@@ -264,6 +246,7 @@ export default function Home() {
       {showStops && activeCrawl && (
         <StopsModal
           crawl={activeCrawl}
+          customLocations={customLocations}
           onClose={() => setShowStops(false)}
           onDeleteStop={deleteStop}
         />
@@ -272,9 +255,13 @@ export default function Home() {
       {pendingStopCoords && (
         <AddStopForm
           coords={pendingStopCoords}
+          hasActiveCrawl={!!activeCrawl}
           onCancel={() => setPendingStopCoords(null)}
-          onAdd={(name, description, arrivedAt, departedAt, lat, lng) => {
-            addManualStop(name, description, arrivedAt, departedAt, lat, lng);
+          onAdd={(name, description, lat, lng, arrivedAt, departedAt) => {
+            const location = addCustomLocation(name, description, lat, lng);
+            if (arrivedAt) {
+              logStopAt(location.id, arrivedAt, departedAt);
+            }
             setPendingStopCoords(null);
           }}
         />

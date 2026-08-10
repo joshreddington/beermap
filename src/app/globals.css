@@ -24,3 +24,74 @@ body {
 .leaflet-container {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Typhoon-style cockpit HUD skin. Overrides the Tailwind color tokens that
+   the whole app's utility classes already resolve through at runtime
+   (confirmed via built output, e.g. .bg-white becomes background-color: var(--color-white)),
+   so every existing background, text, and border utility class re-skins for
+   free. CrawlBar intentionally uses the separate zinc palette for its own
+   chrome so its always-dark top bar is not affected by inverting neutral here. */
+:root[data-theme="hud"] {
+  --color-white: #05140d;
+  --color-neutral-50: #081d13;
+  --color-neutral-100: #0d2a1a;
+  --color-neutral-200: #123722;
+  --color-neutral-300: #1c4a2e;
+  --color-neutral-400: #2f6b45;
+  --color-neutral-500: #5cae82;
+  --color-neutral-600: #7fe3a0;
+  --color-neutral-700: #9dffc0;
+  --color-neutral-800: #baffd4;
+  --color-neutral-900: #39ff14;
+
+  --color-amber-600: #ffb000;
+  --color-amber-700: #cc8c00;
+  --color-green-600: #39ff14;
+  --color-green-700: #2ecc10;
+  --color-red-600: #ff3b30;
+  --color-red-700: #cc2f26;
+  --color-blue-600: #33d9ff;
+  --color-blue-700: #29aecc;
+  --color-purple-600: #ff2ec4;
+  --color-purple-700: #cc25a0;
+
+  --background: #05140d;
+  --foreground: #39ff14;
+}
+
+:root[data-theme="hud"] body {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.01em;
+}
+
+:root[data-theme="hud"] h1,
+:root[data-theme="hud"] h2,
+:root[data-theme="hud"] h3 {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 0 8px currentColor;
+}
+
+:root[data-theme="hud"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(57, 255, 20, 0.05) 0px,
+    rgba(57, 255, 20, 0.05) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+
+/* Scoped to the tile pane (not .leaflet-container) so the filter tints the
+   OSM basemap only — markers/routes live in sibling panes and keep their
+   own HUD colors instead of being shifted by this filter too. */
+:root[data-theme="hud"] .leaflet-tile-pane {
+  filter: invert(1) grayscale(0.4) brightness(0.9) contrast(1.4) sepia(0.6)
+    hue-rotate(80deg) saturate(3);
+}

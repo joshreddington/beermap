@@ -13,8 +13,13 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { BeerHouse } from "@/lib/types";
 import { MUNICH_CENTER } from "@/lib/beerHouses";
+import { useTheme } from "@/context/ThemeContext";
 
 export type LocationStatus = "none" | "open" | "done";
+
+export interface MapLocation extends BeerHouse {
+  kind?: "custom";
+}
 
 export interface RouteSegment {
   key: string;
@@ -23,22 +28,46 @@ export interface RouteSegment {
   wobbleLevel: number;
 }
 
-export interface CustomStopMarker {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-}
-
 export interface PickMode {
   active: boolean;
   label: string;
 }
 
-function makeIcon(status: LocationStatus, selected: boolean) {
-  const bg =
-    status === "open" ? "#16a34a" : status === "done" ? "#78716c" : "#d97706";
-  const ring = selected ? "0 0 0 3px #fff, 0 0 0 6px #2563eb" : "0 0 0 2px #fff";
+const STATUS_COLORS: Record<"standard" | "hud", Record<LocationStatus, string>> = {
+  standard: { open: "#16a34a", done: "#78716c", none: "#d97706" },
+  hud: { open: "#39ff14", done: "#3fae7a", none: "#ffb000" },
+};
+
+function makeIcon(
+  status: LocationStatus,
+  selected: boolean,
+  kind: "beerhouse" | "custom",
+  hud: boolean
+) {
+  const bg = STATUS_COLORS[hud ? "hud" : "standard"][status];
+  const ring = hud
+    ? selected
+      ? "0 0 0 2px #000, 0 0 0 5px #39ff14"
+      : "0 0 0 2px #000"
+    : selected
+    ? "0 0 0 3px #fff, 0 0 0 6px #2563eb"
+    : "0 0 0 2px #fff";
+
+  if (kind === "custom") {
+    return L.divIcon({
+      className: "custom-stop-marker",
+      html: `<div style="
+        width: 28px; height: 28px; border-radius: 50% 50% 50% 0;
+        background: ${bg}; box-shadow: ${ring};
+        transform: rotate(-45deg);
+        display: flex; align-items: center; justify-content: center;">
+        <span style="transform: rotate(45deg); font-size: 13px;">📍</span>
+      </div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 26],
+    });
+  }
+
   return L.divIcon({
     className: "beer-marker",
     html: `<div style="
@@ -52,32 +81,20 @@ function makeIcon(status: LocationStatus, selected: boolean) {
   });
 }
 
-function makeCustomStopIcon(selected: boolean) {
-  const ring = selected ? "0 0 0 2px #fff, 0 0 0 5px #2563eb" : "0 0 0 2px #fff";
+function makeHomeIcon(hud: boolean) {
+  const bg = hud ? "#33d9ff" : "#2563eb";
+  const ring = hud ? "0 0 0 2px #000" : "0 0 0 2px #fff";
   return L.divIcon({
-    className: "custom-stop-marker",
+    className: "home-marker",
     html: `<div style="
-      width: 28px; height: 28px; border-radius: 50% 50% 50% 0;
-      background: #7c3aed; box-shadow: ${ring};
-      transform: rotate(-45deg);
-      display: flex; align-items: center; justify-content: center;">
-      <span style="transform: rotate(45deg); font-size: 13px;">📍</span>
-    </div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 26],
+      width: 36px; height: 36px; border-radius: 50%;
+      background: ${bg}; box-shadow: ${ring};
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;">🏠</div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
   });
 }
-
-const homeIcon = L.divIcon({
-  className: "home-marker",
-  html: `<div style="
-    width: 36px; height: 36px; border-radius: 50%;
-    background: #2563eb; box-shadow: 0 0 0 2px #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;">🏠</div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
 
 // Deterministic PRNG so a given segment's wobble stays stable across re-renders.
 function mulberry32(seed: number) {
@@ -137,15 +154,25 @@ function wobblyPath(
   return points;
 }
 
-function routeColor(wobbleLevel: number): string {
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace("#", "");
+  const num = parseInt(clean, 16);
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+}
+
+// Blends from the crawl's own color toward a "getting drunker" red the
+// further along the route a segment is.
+function routeColor(wobbleLevel: number, baseColor: string): string {
+  const [r0, g0, b0] = hexToRgb(baseColor);
+  const [r1, g1, b1] = [220, 38, 38];
   const t = Math.min(wobbleLevel / 8, 1);
-  const r = Math.round(217 + (220 - 217) * t);
-  const g = Math.round(119 + (38 - 119) * t);
-  const b = Math.round(6 + (38 - 6) * t);
+  const r = Math.round(r0 + (r1 - r0) * t);
+  const g = Math.round(g0 + (g1 - g0) * t);
+  const b = Math.round(b0 + (b1 - b0) * t);
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-function FitBounds({ locations }: { locations: BeerHouse[] }) {
+function FitBounds({ locations }: { locations: MapLocation[] }) {
   const map = useMap();
   useEffect(() => {
     if (locations.length === 0) return;
@@ -200,14 +227,12 @@ function ClickCapture({
 }
 
 interface BeerMapProps {
-  locations: BeerHouse[];
+  locations: MapLocation[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   getStatus: (id: string) => LocationStatus;
   routeSegments?: RouteSegment[];
-  customStops?: CustomStopMarker[];
-  selectedCustomStopId?: string | null;
-  onSelectCustomStop?: (id: string) => void;
+  routeBaseColor?: string;
   homeLocation?: [number, number] | null;
   onHomeClick?: () => void;
   pickMode?: PickMode | null;
@@ -222,9 +247,7 @@ export default function BeerMap({
   onSelect,
   getStatus,
   routeSegments = [],
-  customStops = [],
-  selectedCustomStopId = null,
-  onSelectCustomStop,
+  routeBaseColor = "#d97706",
   homeLocation = null,
   onHomeClick,
   pickMode = null,
@@ -232,24 +255,28 @@ export default function BeerMap({
   onPick,
   onCancelPick,
 }: BeerMapProps) {
+  const { hud } = useTheme();
+
   const icons = useMemo(() => {
     const map = new Map<string, L.DivIcon>();
     for (const loc of locations) {
       const status = getStatus(loc.id);
       const selected = loc.id === selectedId;
-      map.set(loc.id, makeIcon(status, selected));
+      map.set(loc.id, makeIcon(status, selected, loc.kind === "custom" ? "custom" : "beerhouse", hud));
     }
     return map;
-  }, [locations, selectedId, getStatus]);
+  }, [locations, selectedId, getStatus, hud]);
+
+  const homeIcon = useMemo(() => makeHomeIcon(hud), [hud]);
 
   const paths = useMemo(
     () =>
       routeSegments.map((seg) => ({
         key: seg.key,
-        color: routeColor(seg.wobbleLevel),
+        color: routeColor(seg.wobbleLevel, routeBaseColor),
         points: wobblyPath(seg.from, seg.to, seg.wobbleLevel, hashString(seg.key)),
       })),
-    [routeSegments]
+    [routeSegments, routeBaseColor]
   );
 
   const picking = pickMode?.active ?? false;
@@ -287,17 +314,6 @@ export default function BeerMap({
             }}
           />
         ))}
-        {customStops.map((s) => (
-          <Marker
-            key={s.id}
-            position={[s.lat, s.lng]}
-            icon={makeCustomStopIcon(s.id === selectedCustomStopId)}
-            interactive={!picking}
-            eventHandlers={{
-              click: () => onSelectCustomStop?.(s.id),
-            }}
-          />
-        ))}
         {homeLocation && (
           <Marker
             position={homeLocation}
@@ -312,11 +328,11 @@ export default function BeerMap({
 
       {picking && (
         <div className="pointer-events-none absolute inset-x-0 top-3 z-[850] flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-neutral-900/90 px-4 py-2 text-sm text-white shadow-lg">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-zinc-900/90 px-4 py-2 text-sm text-zinc-50 shadow-lg">
             <span>⬇️ {pickMode?.label}</span>
             <button
               onClick={onCancelPick}
-              className="rounded-full bg-white/15 px-2 py-1 text-xs font-medium"
+              className="rounded-full bg-zinc-50/15 px-2 py-1 text-xs font-medium"
             >
               Cancel
             </button>

@@ -18,6 +18,8 @@ interface LocationPanelProps {
   onClose: () => void;
   onStartCrawl: () => void;
   onDeleteStop: (stopId: string) => void;
+  isCustom?: boolean;
+  onDeleteLocation?: () => void;
 }
 
 export default function LocationPanel({
@@ -28,6 +30,8 @@ export default function LocationPanel({
   onClose,
   onStartCrawl,
   onDeleteStop,
+  isCustom = false,
+  onDeleteLocation,
 }: LocationPanelProps) {
   const stopsHere =
     activeCrawl?.stops.filter((s) => s.locationId === location.id) ?? [];
@@ -40,6 +44,7 @@ export default function LocationPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-neutral-900">
+              {isCustom && "📍 "}
               {location.name}
             </h2>
             <p className="text-sm text-neutral-500">{location.address}</p>
@@ -53,7 +58,9 @@ export default function LocationPanel({
           </button>
         </div>
 
-        <p className="mt-3 text-sm text-neutral-700">{location.description}</p>
+        {location.description && (
+          <p className="mt-3 text-sm text-neutral-700">{location.description}</p>
+        )}
 
         {stopsHere.length > 0 && (
           <ul className="mt-3 space-y-2 text-sm text-neutral-600">
@@ -61,8 +68,15 @@ export default function LocationPanel({
               <li key={s.id}>
                 <SwipeToDelete onDelete={() => onDeleteStop(s.id)}>
                   <div className="px-1 py-1.5">
-                    🍺 Arrived {formatTime(s.arrivedAt)}
-                    {s.departedAt ? ` · Left ${formatTime(s.departedAt)}` : " · still here"}
+                    <div>
+                      🍺 Arrived {formatTime(s.arrivedAt)}
+                      {s.departedAt ? ` · Left ${formatTime(s.departedAt)}` : " · still here"}
+                    </div>
+                    {s.challenge && (
+                      <div className="mt-0.5 text-xs text-neutral-500">
+                        🎯 {s.challenge}
+                      </div>
+                    )}
                   </div>
                 </SwipeToDelete>
               </li>
@@ -73,7 +87,7 @@ export default function LocationPanel({
           <p className="mt-1 text-xs text-neutral-400">Swipe a visit left to delete it.</p>
         )}
 
-        <div className="mt-4">
+        <div className="mt-4 space-y-2">
           {!activeCrawl && (
             <button
               onClick={onStartCrawl}
@@ -96,6 +110,14 @@ export default function LocationPanel({
               className="w-full rounded-xl bg-red-600 py-3 font-medium text-white active:bg-red-700"
             >
               Log Departure
+            </button>
+          )}
+          {isCustom && onDeleteLocation && (
+            <button
+              onClick={onDeleteLocation}
+              className="w-full rounded-xl bg-neutral-100 py-2.5 text-sm font-medium text-neutral-700"
+            >
+              Delete This Stop
             </button>
           )}
         </div>
