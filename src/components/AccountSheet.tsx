@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { isApplePlatform } from "@/lib/platform";
 
 interface AccountSheetProps {
   onClose: () => void;
@@ -14,6 +15,13 @@ export default function AccountSheet({ onClose }: AccountSheetProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Computed client-side only (avoids a server/client hydration mismatch,
+  // since the server has no user agent to check).
+  const [showApple, setShowApple] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowApple(isApplePlatform());
+  }, []);
 
   async function submitEmail() {
     if (!email || !password) return;
@@ -78,18 +86,22 @@ export default function AccountSheet({ onClose }: AccountSheetProps) {
 
         {configured && !loading && !user && (
           <div className="mt-3">
-            <button
-              onClick={() => signInWithApple().catch(() => {})}
-              className="w-full rounded-xl bg-black py-3 font-medium text-white active:bg-neutral-800"
-            >
-               Sign in with Apple
-            </button>
+            {showApple && (
+              <>
+                <button
+                  onClick={() => signInWithApple().catch(() => {})}
+                  className="w-full rounded-xl bg-black py-3 font-medium text-white active:bg-neutral-800"
+                >
+                   Sign in with Apple
+                </button>
 
-            <div className="my-3 flex items-center gap-2 text-xs text-neutral-400">
-              <div className="h-px flex-1 bg-neutral-200" />
-              or with email
-              <div className="h-px flex-1 bg-neutral-200" />
-            </div>
+                <div className="my-3 flex items-center gap-2 text-xs text-neutral-400">
+                  <div className="h-px flex-1 bg-neutral-200" />
+                  or with email
+                  <div className="h-px flex-1 bg-neutral-200" />
+                </div>
+              </>
+            )}
 
             <input
               type="email"

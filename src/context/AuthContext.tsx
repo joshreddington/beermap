@@ -65,6 +65,8 @@ function describeAuthError(err: unknown): string {
     case "auth/popup-blocked":
     case "auth/popup-closed-by-user":
       return "Sign-in was cancelled.";
+    case "auth/unauthorized-domain":
+      return "This site isn't set up for sign-in yet (domain not authorized).";
     default:
       return "Something went wrong signing in. Please try again.";
   }

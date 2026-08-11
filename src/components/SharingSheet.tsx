@@ -91,8 +91,8 @@ export default function SharingSheet({ onClose, onNeedsAccount }: SharingSheetPr
                 }`}
               >
                 <span
-                  className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${
-                    sharingEnabled ? "translate-x-6" : "translate-x-1"
+                  className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-[left] ${
+                    sharingEnabled ? "left-6" : "left-1"
                   }`}
                 />
               </button>
