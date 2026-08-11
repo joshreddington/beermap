@@ -4,6 +4,10 @@ import { CrawlProvider } from "@/context/CrawlContext";
 import { HomeProvider } from "@/context/HomeContext";
 import { CustomLocationsProvider } from "@/context/CustomLocationsContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { VisitedYearProvider } from "@/context/VisitedYearContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { GeoLocationProvider } from "@/context/GeoLocationContext";
+import { LocationSharingProvider } from "@/context/LocationSharingContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,7 +44,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           <HomeProvider>
             <CustomLocationsProvider>
-              <CrawlProvider>{children}</CrawlProvider>
+              <VisitedYearProvider>
+                <AuthProvider>
+                  <GeoLocationProvider>
+                    <LocationSharingProvider>
+                      <CrawlProvider>{children}</CrawlProvider>
+                    </LocationSharingProvider>
+                  </GeoLocationProvider>
+                </AuthProvider>
+              </VisitedYearProvider>
             </CustomLocationsProvider>
           </HomeProvider>
         </ThemeProvider>

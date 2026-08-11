@@ -107,4 +107,28 @@ export const BEER_HOUSES: BeerHouse[] = [
     lng: 11.7861,
     address: "Nordallee 3, 85356 München-Flughafen",
   },
+  {
+    id: "seehaus",
+    name: "Seehaus im Englischer Garten",
+    description: "Lakeside beer garden on the Kleinhesseloher See, popular for a sunny afternoon by the water.",
+    lat: 48.1656,
+    lng: 11.6013,
+    address: "Kleinhesselohe 3, 80802 München",
+  },
+  {
+    id: "aumeister",
+    name: "Aumeister",
+    description: "Quiet beer garden tucked at the northern end of the Englischer Garten, away from the crowds.",
+    lat: 48.1874,
+    lng: 11.6069,
+    address: "Sondermeierstraße 1, 80805 München",
+  },
+  {
+    id: "hirschau",
+    name: "Hirschau",
+    description: "Big, family-friendly beer garden in the Englischer Garten near the Aumeister trail.",
+    lat: 48.1737,
+    lng: 11.6013,
+    address: "Gyßlingstraße 15, 80805 München",
+  },
 ];

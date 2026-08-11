@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { BeerHouse, Crawl } from "@/lib/types";
 import SwipeToDelete from "./SwipeToDelete";
 
@@ -9,6 +10,8 @@ function formatTime(iso: string): string {
     minute: "2-digit",
   });
 }
+
+const CURRENT_YEAR = new Date().getFullYear();
 
 interface LocationPanelProps {
   location: BeerHouse;
@@ -20,6 +23,9 @@ interface LocationPanelProps {
   onDeleteStop: (stopId: string) => void;
   isCustom?: boolean;
   onDeleteLocation?: () => void;
+  visitedYear?: number | null;
+  onSetVisitedYear?: (year: number) => void;
+  onClearVisitedYear?: () => void;
 }
 
 export default function LocationPanel({
@@ -32,10 +38,25 @@ export default function LocationPanel({
   onDeleteStop,
   isCustom = false,
   onDeleteLocation,
+  visitedYear = null,
+  onSetVisitedYear,
+  onClearVisitedYear,
 }: LocationPanelProps) {
   const stopsHere =
     activeCrawl?.stops.filter((s) => s.locationId === location.id) ?? [];
   const openStop = stopsHere.find((s) => s.departedAt === null);
+  const [editingYear, setEditingYear] = useState(false);
+  const [yearInput, setYearInput] = useState(
+    visitedYear ? String(visitedYear) : ""
+  );
+
+  function submitYear() {
+    const year = parseInt(yearInput, 10);
+    if (Number.isInteger(year) && year >= 1900 && year <= CURRENT_YEAR) {
+      onSetVisitedYear?.(year);
+      setEditingYear(false);
+    }
+  }
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[1000] rounded-t-2xl bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] pb-[env(safe-area-inset-bottom)]">
@@ -60,6 +81,67 @@ export default function LocationPanel({
 
         {location.description && (
           <p className="mt-3 text-sm text-neutral-700">{location.description}</p>
+        )}
+
+        {onSetVisitedYear && (
+          <div className="mt-2 text-sm text-neutral-600">
+            {editingYear ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  type="number"
+                  inputMode="numeric"
+                  min={1900}
+                  max={CURRENT_YEAR}
+                  value={yearInput}
+                  onChange={(e) => setYearInput(e.target.value)}
+                  placeholder={String(CURRENT_YEAR)}
+                  className="w-24 rounded-lg border border-neutral-300 px-2 py-1 text-sm text-neutral-900"
+                />
+                <button
+                  onClick={submitYear}
+                  className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingYear(false)}
+                  className="rounded-lg px-2 py-1 text-xs text-neutral-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : visitedYear ? (
+              <button
+                onClick={() => {
+                  setYearInput(String(visitedYear));
+                  setEditingYear(true);
+                }}
+                className="flex items-center gap-1"
+              >
+                🗓️ First visited {visitedYear}
+                {onClearVisitedYear && (
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClearVisitedYear();
+                    }}
+                    className="ml-1 text-xs text-neutral-400"
+                  >
+                    ✕
+                  </span>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => setEditingYear(true)}
+                className="text-xs text-neutral-400 underline decoration-dotted"
+              >
+                + Add first visited year
+              </button>
+            )}
+          </div>
         )}
 
         {stopsHere.length > 0 && (

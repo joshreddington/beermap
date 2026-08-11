@@ -5,6 +5,9 @@ import dynamic from "next/dynamic";
 import { useCrawls } from "@/context/CrawlContext";
 import { useHome } from "@/context/HomeContext";
 import { useCustomLocations } from "@/context/CustomLocationsContext";
+import { useVisitedYears } from "@/context/VisitedYearContext";
+import { useGeoLocation } from "@/context/GeoLocationContext";
+import { useLocationSharing } from "@/context/LocationSharingContext";
 import { BEER_HOUSES } from "@/lib/beerHouses";
 import { stopCoords } from "@/lib/stops";
 import { getCrawlColor } from "@/lib/crawlColors";
@@ -16,6 +19,8 @@ import StopsModal from "@/components/StopsModal";
 import AddStopForm from "@/components/AddStopForm";
 import HomeSheet from "@/components/HomeSheet";
 import BeerHouseList from "@/components/BeerHouseList";
+import AccountSheet from "@/components/AccountSheet";
+import SharingSheet from "@/components/SharingSheet";
 import type { LocationStatus, RouteSegment, PickMode, MapLocation } from "@/components/BeerMap";
 
 const BeerMap = dynamic(() => import("@/components/BeerMap"), {
@@ -43,6 +48,16 @@ export default function Home() {
   } = useCrawls();
   const { home, setHome, clearHome } = useHome();
   const { customLocations, addCustomLocation, deleteCustomLocation } = useCustomLocations();
+  const { getVisitedYear, setVisitedYear, clearVisitedYear } = useVisitedYears();
+  const {
+    status: geoStatus,
+    fix: myFix,
+    enabled: geoEnabled,
+    enable: enableGeo,
+    disable: disableGeo,
+    retryAfterDenied,
+  } = useGeoLocation();
+  const { sharedPeers } = useLocationSharing();
 
   const [view, setView] = useState<ViewMode>("map");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -50,6 +65,8 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
   const [showStops, setShowStops] = useState(false);
   const [showHomeSheet, setShowHomeSheet] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
+  const [showSharing, setShowSharing] = useState(false);
   const [pickTarget, setPickTarget] = useState<PickTarget>(null);
   const [pendingStopCoords, setPendingStopCoords] = useState<[number, number] | null>(
     null
@@ -154,6 +171,8 @@ export default function Home() {
         onEndClick={endCrawl}
         onHistoryClick={() => setShowHistory(true)}
         onStopsClick={() => setShowStops(true)}
+        onAccountClick={() => setShowAccount(true)}
+        onSharingClick={() => setShowSharing(true)}
         view={view}
         onViewChange={setView}
       />
@@ -174,6 +193,9 @@ export default function Home() {
               pickFocus={pickFocus}
               onPick={handlePick}
               onCancelPick={() => setPickTarget(null)}
+              myLocation={myFix}
+              myLocationStatus={geoStatus}
+              sharedPeers={sharedPeers}
             />
             {!pickMode && (
               <button
@@ -192,6 +214,33 @@ export default function Home() {
               >
                 🏠
               </button>
+            )}
+            {!pickMode && (
+              <button
+                onClick={() => {
+                  if (geoStatus === "denied") {
+                    retryAfterDenied();
+                  } else if (geoEnabled) {
+                    disableGeo();
+                  } else {
+                    enableGeo();
+                  }
+                }}
+                aria-label="Locate me"
+                aria-pressed={geoEnabled}
+                className={`absolute bottom-24 left-4 z-[800] flex h-14 w-14 items-center justify-center rounded-full text-2xl shadow-lg ${
+                  geoEnabled ? "bg-blue-600 text-white active:bg-blue-700" : "bg-white text-neutral-700 active:bg-neutral-100"
+                }`}
+              >
+                🧭
+              </button>
+            )}
+            {!pickMode && geoEnabled && (geoStatus === "denied" || geoStatus === "unavailable") && (
+              <div className="pointer-events-none absolute bottom-[9.75rem] left-4 z-[800] max-w-[13rem] rounded-lg bg-zinc-900/90 px-3 py-2 text-xs text-zinc-50 shadow-lg">
+                {geoStatus === "denied"
+                  ? "Location permission is off. Tap the compass to try again."
+                  : "No GPS signal right now. The map still works fine."}
+              </div>
             )}
           </>
         ) : (
@@ -221,6 +270,9 @@ export default function Home() {
                 }
               : undefined
           }
+          visitedYear={getVisitedYear(selectedLocation.id)}
+          onSetVisitedYear={(year) => setVisitedYear(selectedLocation.id, year)}
+          onClearVisitedYear={() => clearVisitedYear(selectedLocation.id)}
         />
       )}
 
@@ -278,6 +330,18 @@ export default function Home() {
           onRemove={() => {
             clearHome();
             setShowHomeSheet(false);
+          }}
+        />
+      )}
+
+      {showAccount && <AccountSheet onClose={() => setShowAccount(false)} />}
+
+      {showSharing && (
+        <SharingSheet
+          onClose={() => setShowSharing(false)}
+          onNeedsAccount={() => {
+            setShowSharing(false);
+            setShowAccount(true);
           }}
         />
       )}

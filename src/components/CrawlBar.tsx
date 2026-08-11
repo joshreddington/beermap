@@ -19,6 +19,8 @@ interface CrawlBarProps {
   onEndClick: () => void;
   onHistoryClick: () => void;
   onStopsClick: () => void;
+  onAccountClick: () => void;
+  onSharingClick: () => void;
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
 }
@@ -29,6 +31,8 @@ export default function CrawlBar({
   onEndClick,
   onHistoryClick,
   onStopsClick,
+  onAccountClick,
+  onSharingClick,
   view,
   onViewChange,
 }: CrawlBarProps) {
@@ -41,6 +45,20 @@ export default function CrawlBar({
           🍺 Munich Bar Crawl
         </span>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={onSharingClick}
+            aria-label="Location sharing"
+            className="rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-300"
+          >
+            📡
+          </button>
+          <button
+            onClick={onAccountClick}
+            aria-label="Account"
+            className="rounded-md bg-zinc-800 px-2 py-1.5 text-sm text-zinc-300"
+          >
+            👤
+          </button>
           <button
             onClick={toggleHud}
             aria-label="Toggle HUD display"

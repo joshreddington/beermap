@@ -5,6 +5,7 @@ import {
   MapContainer,
   TileLayer,
   Marker,
+  Circle,
   Polyline,
   useMap,
   useMapEvents,
@@ -14,6 +15,8 @@ import "leaflet/dist/leaflet.css";
 import { BeerHouse } from "@/lib/types";
 import { MUNICH_CENTER } from "@/lib/beerHouses";
 import { useTheme } from "@/context/ThemeContext";
+import type { GeoFix, GeoStatus } from "@/context/GeoLocationContext";
+import type { SharedPeer } from "@/context/LocationSharingContext";
 
 export type LocationStatus = "none" | "open" | "done";
 
@@ -93,6 +96,41 @@ function makeHomeIcon(hud: boolean) {
       font-size: 18px;">🏠</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
+  });
+}
+
+// Solid dot while we have a fresh fix; greyed out (not removed) once the fix
+// goes stale, so the marker never just vanishes or jumps to a new spot.
+function makeMyLocationIcon(status: GeoStatus, hud: boolean) {
+  const isFresh = status === "active";
+  const bg = isFresh ? (hud ? "#39ff14" : "#2563eb") : "#9ca3af";
+  const ring = hud ? "0 0 0 2px #000" : "0 0 0 2px #fff";
+  return L.divIcon({
+    className: "my-location-marker",
+    html: `<div style="
+      width: 18px; height: 18px; border-radius: 50%;
+      background: ${bg}; box-shadow: ${ring};
+      opacity: ${isFresh ? 1 : 0.65};
+      border: ${isFresh ? "none" : "2px dashed #6b7280"};
+    "></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
+function makeSharedPeerIcon(label: string, hud: boolean) {
+  const bg = hud ? "#ff00ff" : "#7c3aed";
+  const ring = hud ? "0 0 0 2px #000" : "0 0 0 2px #fff";
+  const initial = label.trim().charAt(0).toUpperCase() || "?";
+  return L.divIcon({
+    className: "shared-peer-marker",
+    html: `<div style="
+      width: 26px; height: 26px; border-radius: 50%;
+      background: ${bg}; box-shadow: ${ring};
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: #fff; font-weight: 600;">${initial}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
   });
 }
 
@@ -239,6 +277,9 @@ interface BeerMapProps {
   pickFocus?: [number, number] | null;
   onPick?: (lat: number, lng: number) => void;
   onCancelPick?: () => void;
+  myLocation?: GeoFix | null;
+  myLocationStatus?: GeoStatus;
+  sharedPeers?: SharedPeer[];
 }
 
 export default function BeerMap({
@@ -254,6 +295,9 @@ export default function BeerMap({
   pickFocus = null,
   onPick,
   onCancelPick,
+  myLocation = null,
+  myLocationStatus = "idle",
+  sharedPeers = [],
 }: BeerMapProps) {
   const { hud } = useTheme();
 
@@ -268,6 +312,17 @@ export default function BeerMap({
   }, [locations, selectedId, getStatus, hud]);
 
   const homeIcon = useMemo(() => makeHomeIcon(hud), [hud]);
+  const myLocationIcon = useMemo(
+    () => makeMyLocationIcon(myLocationStatus, hud),
+    [myLocationStatus, hud]
+  );
+  const peerIcons = useMemo(() => {
+    const map = new Map<string, L.DivIcon>();
+    for (const peer of sharedPeers) {
+      map.set(peer.id, makeSharedPeerIcon(peer.label, hud));
+    }
+    return map;
+  }, [sharedPeers, hud]);
 
   const paths = useMemo(
     () =>
@@ -324,6 +379,34 @@ export default function BeerMap({
             }}
           />
         )}
+        {myLocation && (
+          <>
+            <Marker
+              position={[myLocation.lat, myLocation.lng]}
+              icon={myLocationIcon}
+              interactive={false}
+            />
+            {myLocationStatus === "active" && (
+              <Circle
+                center={[myLocation.lat, myLocation.lng]}
+                radius={myLocation.accuracy}
+                pathOptions={{
+                  color: hud ? "#39ff14" : "#2563eb",
+                  fillOpacity: 0.08,
+                  weight: 1,
+                }}
+              />
+            )}
+          </>
+        )}
+        {sharedPeers.map((peer) => (
+          <Marker
+            key={peer.id}
+            position={[peer.lat, peer.lng]}
+            icon={peerIcons.get(peer.id)}
+            interactive={false}
+          />
+        ))}
       </MapContainer>
 
       {picking && (
