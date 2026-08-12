@@ -14,10 +14,12 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  getRedirectResult,
   OAuthProvider,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { getFirebaseAuth, firebaseConfigured } from "@/lib/firebase";
+import { isSafariBrowser } from "@/lib/platform";
 
 export interface AuthUser {
   uid: string;
@@ -88,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    // Surfaces errors from the signInWithRedirect round-trip (used on
+    // Safari and in the native app, see signInWithApple below). A
+    // successful redirect result is picked up by onAuthStateChanged below
+    // without needing the resolved credential here.
+    getRedirectResult(auth).catch((err) => {
+      console.error("Firebase redirect sign-in error:", err);
+      setError(describeAuthError(err));
+    });
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(toAuthUser(firebaseUser));
       setLoading(false);
@@ -102,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
+      console.error("Firebase auth error:", err);
       setError(describeAuthError(err));
       throw err;
     }
@@ -114,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (err) {
+      console.error("Firebase auth error:", err);
       setError(describeAuthError(err));
       throw err;
     }
@@ -125,18 +137,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     const provider = new OAuthProvider("apple.com");
     try {
-      // Popups don't work inside a Capacitor native webview; fall back to a
-      // full-page redirect there. On the web build, a popup keeps app state.
+      // Popups don't work inside a Capacitor native webview, and Safari's
+      // cross-site tracking prevention blocks the popup from relaying its
+      // result back to the opener (they're on different origins: the app
+      // on its own domain, Firebase's auth relay on *.firebaseapp.com) --
+      // both need a full-page redirect instead. Chrome/Firefox don't have
+      // that restriction, so a popup there keeps the rest of the app state.
       const isNative =
         typeof window !== "undefined" &&
         // @ts-expect-error -- injected by Capacitor at runtime, not always present
         Boolean(window.Capacitor?.isNativePlatform?.());
-      if (isNative) {
+      if (isNative || isSafariBrowser()) {
         await signInWithRedirect(auth, provider);
       } else {
         await signInWithPopup(auth, provider);
       }
     } catch (err) {
+      console.error("Firebase auth error:", err);
       setError(describeAuthError(err));
       throw err;
     }

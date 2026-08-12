@@ -5,6 +5,7 @@ import {
   initializeAuth,
   indexedDBLocalPersistence,
   browserLocalPersistence,
+  browserPopupRedirectResolver,
 } from "firebase/auth";
 import {
   Firestore,
@@ -45,6 +46,11 @@ function init() {
 
   auth = initializeAuth(app, {
     persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    // initializeAuth (needed above for explicit persistence control) has no
+    // popup/redirect support by default, unlike getAuth() -- without this,
+    // both signInWithPopup and signInWithRedirect throw auth/argument-error
+    // immediately.
+    popupRedirectResolver: browserPopupRedirectResolver,
   });
 
   // Firestore's persistent local cache is what makes location sharing
