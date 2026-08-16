@@ -224,10 +224,10 @@ function wobblyPath(
   }
   length = length || 1e-9;
 
-  const ampFraction = Math.min(0.006 + wobbleLevel * 0.003, 0.05);
-  // ~0.0006 degrees is roughly 65m at Munich's latitude — noticeable
-  // hand-tremor, not a detour into the next street over.
-  const amplitude = Math.min(length * ampFraction, 0.0006);
+  const ampFraction = Math.min(0.002 + wobbleLevel * 0.0008, 0.015);
+  // ~0.00009 degrees is roughly 10m at Munich's latitude — a hand tremor on
+  // the sidewalk, not enough to cross the curb into a building.
+  const amplitude = Math.min(length * ampFraction, 0.00009);
   const frequency = 1.5 + wobbleLevel * 0.4;
   const phase = rand() * Math.PI * 2;
 
@@ -238,7 +238,7 @@ function wobblyPath(
     const perpLng = tangent[0];
     const envelope = Math.sin(Math.PI * t);
     const wave = Math.sin(t * frequency * Math.PI * 2 + phase);
-    const jitter = (rand() - 0.5) * 0.6;
+    const jitter = (rand() - 0.5) * 0.4;
     const offset = (wave + jitter) * amplitude * envelope;
     return [lat + perpLat * offset, lng + perpLng * offset];
   });
