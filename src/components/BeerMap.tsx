@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -15,6 +15,7 @@ import "leaflet/dist/leaflet.css";
 import { BeerHouse } from "@/lib/types";
 import { MUNICH_CENTER } from "@/lib/beerHouses";
 import { useTheme } from "@/context/ThemeContext";
+import { fetchWalkingRoute } from "@/lib/routing";
 import type { GeoFix, GeoStatus } from "@/context/GeoLocationContext";
 import type { SharedPeer } from "@/context/LocationSharingContext";
 
@@ -154,42 +155,93 @@ function hashString(s: string): number {
   return h;
 }
 
+// Resamples a (possibly multi-vertex) path at even steps by arc length,
+// returning each sample point plus the path's local direction there so a
+// wobble can be applied perpendicular to the actual line of travel rather
+// than the straight line between its endpoints.
+function resampleWithTangents(
+  path: [number, number][],
+  steps: number
+): { point: [number, number]; tangent: [number, number] }[] {
+  const segLengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+    segLengths.push(d);
+    total += d;
+  }
+  if (total === 0) {
+    return Array.from({ length: steps + 1 }, () => ({
+      point: path[0],
+      tangent: [0, 0] as [number, number],
+    }));
+  }
+
+  const result: { point: [number, number]; tangent: [number, number] }[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const targetDist = (i / steps) * total;
+    let acc = 0;
+    let segIdx = 0;
+    for (; segIdx < segLengths.length - 1; segIdx++) {
+      if (acc + segLengths[segIdx] >= targetDist) break;
+      acc += segLengths[segIdx];
+    }
+    const segLen = segLengths[segIdx] || 1e-9;
+    const localT = Math.min(Math.max((targetDist - acc) / segLen, 0), 1);
+    const p0 = path[segIdx];
+    const p1 = path[segIdx + 1];
+    const dLat = p1[0] - p0[0];
+    const dLng = p1[1] - p0[1];
+    const len = Math.hypot(dLat, dLng) || 1e-9;
+    result.push({
+      point: [p0[0] + dLat * localT, p0[1] + dLng * localT],
+      tangent: [dLat / len, dLng / len],
+    });
+  }
+  return result;
+}
+
 // A drunker walk the more stops in, but scaled to how far apart the two
 // stops actually are: two bars a block apart stay a fairly straight line
-// even late in the crawl, while a long trek (e.g. out to Erding) can wander.
+// even late in the crawl, while a long trek (e.g. out to Erding) can wander
+// a little more. `path` is the real walking route when we have one (falls
+// back to just the two endpoints), so the wobble rides along actual streets
+// — it's a hand-jittered version of the real route, not a replacement for
+// it, so the amplitude is kept small relative to a city block even at the
+// top of its range.
 function wobblyPath(
-  from: [number, number],
-  to: [number, number],
+  path: [number, number][],
   wobbleLevel: number,
   seed: number
 ): [number, number][] {
-  const steps = 24;
+  const steps = Math.max(24, Math.min(path.length * 2, 96));
   const rand = mulberry32(seed);
-  const [fromLat, fromLng] = from;
-  const [toLat, toLng] = to;
-  const dLat = toLat - fromLat;
-  const dLng = toLng - fromLng;
-  const length = Math.hypot(dLat, dLng) || 1e-9;
-  const perpLat = -dLng / length;
-  const perpLng = dLat / length;
+  const samples = resampleWithTangents(path, steps);
 
-  const ampFraction = Math.min(0.04 + wobbleLevel * 0.025, 0.3);
-  const amplitude = Math.min(length * ampFraction, 0.01);
+  let length = 0;
+  for (let i = 1; i < path.length; i++) {
+    length += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+  }
+  length = length || 1e-9;
+
+  const ampFraction = Math.min(0.006 + wobbleLevel * 0.003, 0.05);
+  // ~0.0006 degrees is roughly 65m at Munich's latitude — noticeable
+  // hand-tremor, not a detour into the next street over.
+  const amplitude = Math.min(length * ampFraction, 0.0006);
   const frequency = 1.5 + wobbleLevel * 0.4;
   const phase = rand() * Math.PI * 2;
 
-  const points: [number, number][] = [];
-  for (let i = 0; i <= steps; i++) {
+  return samples.map(({ point, tangent }, i) => {
     const t = i / steps;
-    const baseLat = fromLat + dLat * t;
-    const baseLng = fromLng + dLng * t;
+    const [lat, lng] = point;
+    const perpLat = -tangent[1];
+    const perpLng = tangent[0];
     const envelope = Math.sin(Math.PI * t);
     const wave = Math.sin(t * frequency * Math.PI * 2 + phase);
     const jitter = (rand() - 0.5) * 0.6;
     const offset = (wave + jitter) * amplitude * envelope;
-    points.push([baseLat + perpLat * offset, baseLng + perpLng * offset]);
-  }
-  return points;
+    return [lat + perpLat * offset, lng + perpLng * offset];
+  });
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -324,14 +376,46 @@ export default function BeerMap({
     return map;
   }, [sharedPeers, hud]);
 
+  // Real walking-route geometry per segment, fetched best-effort from a
+  // public routing service and cached by endpoint pair. Segments fall back
+  // to a straight line (still wobbled) until their route arrives or if the
+  // request fails.
+  const [walkingRoutes, setWalkingRoutes] = useState<Map<string, [number, number][]>>(
+    () => new Map()
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    for (const seg of routeSegments) {
+      if (walkingRoutes.has(seg.key)) continue;
+      fetchWalkingRoute(seg.from, seg.to).then((points) => {
+        if (cancelled || !points) return;
+        setWalkingRoutes((prev) => {
+          if (prev.has(seg.key)) return prev;
+          const next = new Map(prev);
+          next.set(seg.key, points);
+          return next;
+        });
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSegments]);
+
   const paths = useMemo(
     () =>
       routeSegments.map((seg) => ({
         key: seg.key,
         color: routeColor(seg.wobbleLevel, routeBaseColor),
-        points: wobblyPath(seg.from, seg.to, seg.wobbleLevel, hashString(seg.key)),
+        points: wobblyPath(
+          walkingRoutes.get(seg.key) ?? [seg.from, seg.to],
+          seg.wobbleLevel,
+          hashString(seg.key)
+        ),
       })),
-    [routeSegments, routeBaseColor]
+    [routeSegments, routeBaseColor, walkingRoutes]
   );
 
   const picking = pickMode?.active ?? false;
